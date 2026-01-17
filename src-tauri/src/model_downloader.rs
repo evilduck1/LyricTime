@@ -1,7 +1,6 @@
 use futures_util::StreamExt;
-use sha2::{Digest, Sha256};
 use std::path::{Path, PathBuf};
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Emitter, Manager};
 
 #[derive(serde::Serialize)]
 pub struct ModelPaths {
@@ -25,7 +24,7 @@ async fn download(app: &AppHandle, url: &str, out: &Path, name: &str) -> Result<
   let client = reqwest::Client::new();
   let res = client.get(url).send().await.map_err(|e| e.to_string())?;
   if !res.status().is_success() {
-    return Err(format!("Failed to download {name}"));
+    return Err(format!("Failed to download {name}: HTTP {}", res.status()));
   }
 
   let total = res.content_length();
@@ -40,14 +39,23 @@ async fn download(app: &AppHandle, url: &str, out: &Path, name: &str) -> Result<
     use std::io::Write;
     file.write_all(&chunk).map_err(|e| e.to_string())?;
     downloaded += chunk.len() as u64;
+
     let percent = total.map(|t| downloaded as f64 / t as f64 * 100.0);
-    let _ = app.emit("model_download_progress", ProgressEvent {
-      model: name.to_string(),
-      downloaded,
-      total,
-      percent,
-    });
+
+    // Requires `use tauri::Emitter;`
+    let _ = app.emit(
+      "model_download_progress",
+      ProgressEvent {
+        model: name.to_string(),
+        downloaded,
+        total,
+        percent,
+      },
+    );
   }
+
+  // Close file handle before rename on Windows
+  drop(file);
 
   std::fs::rename(tmp, out).map_err(|e| e.to_string())?;
   Ok(())
