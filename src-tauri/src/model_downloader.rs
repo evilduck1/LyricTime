@@ -8,7 +8,7 @@ pub struct ModelPaths {
   pub medium_path: String,
 }
 
-#[derive(serde::Serialize)]
+#[derive(serde::Serialize, Clone)]
 struct ProgressEvent {
   model: String,
   downloaded: u64,
