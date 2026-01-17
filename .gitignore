@@ -21,3 +21,7 @@ src-tauri/gen/
 .env
 .env.*
 .DS_Store
+
+# Local-only Whisper assets
+src-tauri/resources/bin/macos/whisper
+src-tauri/resources/models/ggml-medium.bin

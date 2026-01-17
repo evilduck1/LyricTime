@@ -1,2 +1,6 @@
 src-tauri/resources/models/*.bin filter=lfs diff=lfs merge=lfs -text
 src-tauri/resources/bin/** filter=lfs diff=lfs merge=lfs -text
+# Exclude Whisper + medium model from LFS (override rules above)
+src-tauri/resources/models/ggml-medium.bin -filter -diff -merge -text
+src-tauri/resources/bin/macos/whisper -filter -diff -merge -text
+
