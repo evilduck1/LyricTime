@@ -20,3 +20,4 @@ src-tauri/gen/
 # Env / secrets
 .env
 .env.*
+.DS_Store
