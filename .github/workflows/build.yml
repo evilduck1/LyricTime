@@ -17,13 +17,13 @@ jobs:
 
     runs-on: ${{ matrix.os }}
 
-    ssteps:
-  - name: Checkout repo (no LFS)
-    uses: actions/checkout@v4
-    with:
-      lfs: false
-    env:
-      GIT_LFS_SKIP_SMUDGE: "1"
+    steps:
+      - name: Checkout repo (no LFS)
+        uses: actions/checkout@v4
+        with:
+          lfs: false
+        env:
+          GIT_LFS_SKIP_SMUDGE: "1"
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -89,3 +89,4 @@ jobs:
           releaseBody: "Automated build for ${{ github.ref_name }}"
           releaseDraft: false
           prerelease: false
+
