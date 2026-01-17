@@ -8,7 +8,6 @@ on:
 permissions:
   contents: write
 
-
 jobs:
   release:
     strategy:
@@ -38,6 +37,45 @@ jobs:
 
       - name: Build frontend
         run: npm run build
+
+      - name: Download FFmpeg (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          $dest = "src-tauri/resources/bin/windows"
+          New-Item -ItemType Directory -Force -Path $dest | Out-Null
+
+          $zip = "$env:RUNNER_TEMP\ffmpeg.zip"
+          Invoke-WebRequest `
+            -Uri "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip" `
+            -OutFile $zip
+
+          $extract = "$env:RUNNER_TEMP\ffmpeg"
+          if (Test-Path $extract) { Remove-Item -Recurse -Force $extract }
+          Expand-Archive -Path $zip -DestinationPath $extract -Force
+
+          $bin = Get-ChildItem -Path $extract -Recurse -Directory -Filter bin | Select-Object -First 1
+          if (-not $bin) { throw "Could not find bin folder in extracted FFmpeg archive." }
+
+          Copy-Item (Join-Path $bin.FullName "ffmpeg.exe")  -Destination $dest -Force
+          Copy-Item (Join-Path $bin.FullName "ffprobe.exe") -Destination $dest -Force
+
+          Write-Host "Bundled FFmpeg files:"
+          Get-ChildItem -Path $dest
+
+          $ff = Get-Item "$dest\ffmpeg.exe"
+          if ($ff.Length -lt 5MB) { throw "ffmpeg.exe looks too small ($($ff.Length) bytes). Download likely failed." }
+
+      - name: Verify FFmpeg present (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          dir src-tauri/resources/bin/windows
+          if (!(Test-Path "src-tauri/resources/bin/windows/ffmpeg.exe"))  { throw "ffmpeg.exe missing" }
+          if (!(Test-Path "src-tauri/resources/bin/windows/ffprobe.exe")) { throw "ffprobe.exe missing" }
 
       - name: Build & publish Tauri app
         uses: tauri-apps/tauri-action@v0
