@@ -27,16 +27,17 @@ async fn ensure_ffmpeg_downloaded(
   app: tauri::AppHandle,
 ) -> Result<ffmpeg_downloader::FfmpegPaths, String> {
   #[cfg(windows)]
-  let (ffmpeg_url, ffprobe_url) = (
-    "https://github.com/evilduck1/LyricTime/releases/download/deps/windows/ffmpeg.exe".to_string(),
-    "https://github.com/evilduck1/LyricTime/releases/download/deps/windows/ffprobe.exe".to_string(),
-  );
+let (ffmpeg_url, ffprobe_url) = (
+  "https://github.com/evilduck1/LyricTime/releases/download/deps/ffmpeg.exe".to_string(),
+  "https://github.com/evilduck1/LyricTime/releases/download/deps/ffprobe.exe".to_string(),
+);
 
   #[cfg(not(windows))]
-  let (ffmpeg_url, ffprobe_url) = (
-    "https://github.com/evilduck1/LyricTime/releases/download/deps/macos/ffmpeg".to_string(),
-    "https://github.com/evilduck1/LyricTime/releases/download/deps/macos/ffprobe".to_string(),
-  );
+  #[cfg(not(windows))]
+let (ffmpeg_url, ffprobe_url) = (
+  "https://github.com/evilduck1/LyricTime/releases/download/deps/ffmpeg".to_string(),
+  "https://github.com/evilduck1/LyricTime/releases/download/deps/ffprobe".to_string(),
+);
 
   ffmpeg_downloader::ensure_ffmpeg(app, ffmpeg_url, ffprobe_url).await
 }
