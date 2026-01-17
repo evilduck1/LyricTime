@@ -2,7 +2,7 @@ use super::{emit, ProgressEvent};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
-use tauri::AppHandle;
+use tauri::{AppHandle, Manager};
 
 fn model_candidates(model: &str) -> Result<Vec<&'static str>, String> {
   match model {
@@ -81,8 +81,38 @@ pub fn pick_executable_with_fallback(
   Err(format!("Executable not found: {base}"))
 }
 
+pub fn pick_executable_multi(
+  app_bin_dir: &Path,
+  resources_bin_dir: &Path,
+  fallback: Option<&PathBuf>,
+  platform: &str,
+  base: &str,
+) -> Result<PathBuf, String> {
+  // 1) Downloaded binary in app data dir (preferred)
+  let app_primary = app_bin_dir.join(exe_name(base));
+  if app_primary.exists() {
+    return Ok(app_primary);
+  }
+
+  // 2) Bundled resources/bin/<platform>
+  let res_primary = resources_bin_dir.join(exe_name(base));
+  if res_primary.exists() {
+    return Ok(res_primary);
+  }
+
+  // 3) Dev fallback resources/bin/<platform>
+  if let Some(fallback) = fallback {
+    let alt = fallback.join("bin").join(platform).join(exe_name(base));
+    if alt.exists() {
+      return Ok(alt);
+    }
+  }
+
+  Err(format!("Executable not found: {base}"))
+}
+
 pub fn resolve_model_path_with_fallback(
-  _app: &AppHandle,
+  app: &AppHandle,
   resources_dir: &Path,
   fallback: Option<&PathBuf>,
   model: &str,
@@ -90,6 +120,11 @@ pub fn resolve_model_path_with_fallback(
   let candidates = model_candidates(model)?;
 
   let mut dirs: Vec<PathBuf> = Vec::new();
+
+  // Downloaded models (app data)
+  if let Ok(app_data) = app.path().app_data_dir() {
+    dirs.push(app_data.join("models"));
+  }
 
   // Bundled models
   dirs.push(resources_dir.join("models"));

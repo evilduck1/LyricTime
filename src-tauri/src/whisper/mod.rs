@@ -4,6 +4,8 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use tauri::{AppHandle, Emitter, Manager};
 
+use crate::{ffmpeg_downloader, model_downloader};
+
 mod process;
 
 static IS_RUNNING: AtomicBool = AtomicBool::new(false);
@@ -97,11 +99,44 @@ pub async fn generate_lrc_next_to_audio(
     return Err("Unsupported OS".into());
   };
 
-  let bin_dir = resources_dir.join("bin").join(platform);
-  let ffmpeg =
-    process::pick_executable_with_fallback(&bin_dir, fallback_resources_dir.as_ref(), platform, "ffmpeg")?;
-  let whisper =
-    process::pick_executable_with_fallback(&bin_dir, fallback_resources_dir.as_ref(), platform, "whisper")?;
+  // Ensure runtime deps exist (download-on-first-use). This makes release builds work
+// even when nothing is bundled and PATH is empty.
+#[cfg(windows)]
+let (ffmpeg_url, ffprobe_url) = (
+  "https://github.com/evilduck1/LyricTime/releases/download/deps/ffmpeg.exe".to_string(),
+  "https://github.com/evilduck1/LyricTime/releases/download/deps/ffprobe.exe".to_string(),
+);
+
+#[cfg(not(windows))]
+let (ffmpeg_url, ffprobe_url) = (
+  "https://github.com/evilduck1/LyricTime/releases/download/deps/ffmpeg".to_string(),
+  "https://github.com/evilduck1/LyricTime/releases/download/deps/ffprobe".to_string(),
+);
+
+let ffmpeg_paths = ffmpeg_downloader::ensure_ffmpeg(app.clone(), ffmpeg_url, ffprobe_url).await?;
+let ffmpeg = PathBuf::from(ffmpeg_paths.ffmpeg_path);
+
+// Ensure whisper models exist (downloaded into app data /models)
+let small_url = "https://github.com/evilduck1/LyricTime/releases/download/models/ggml-small.bin".to_string();
+let medium_url = "https://github.com/evilduck1/LyricTime/releases/download/models/ggml-medium.bin".to_string();
+let _ = model_downloader::ensure_models(app.clone(), small_url, medium_url).await?;
+
+// Whisper executable: prefer app data (downloaded) then bundled resources.
+// NOTE: If you aren't bundling whisper, you'll need to upload it as a Release asset and download it like ffmpeg.
+let resources_bin_dir = resources_dir.join("bin").join(platform);
+let app_bin_dir = app
+  .path()
+  .app_data_dir()
+  .map_err(|e| format!("app_data_dir error: {e}"))?
+  .join("bin");
+
+let whisper = process::pick_executable_multi(
+  &app_bin_dir,
+  &resources_bin_dir,
+  fallback_resources_dir.as_ref(),
+  platform,
+  "whisper",
+)?;
 
   // Temp workspace (unique per run)
   let run_id = format!(
