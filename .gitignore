@@ -25,3 +25,13 @@ src-tauri/gen/
 # Local-only Whisper assets
 src-tauri/resources/bin/macos/whisper
 src-tauri/resources/models/ggml-medium.bin
+
+# Runtime-downloaded binaries
+src-tauri/resources/bin/
+
+# Local builds
+whisper.cpp/
+
+# macOS junk
+.DS_Store
+
