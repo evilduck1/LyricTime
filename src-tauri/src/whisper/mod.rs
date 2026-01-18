@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use tauri::{AppHandle, Emitter, Manager};
 
-use crate::{ffmpeg_downloader, model_downloader};
+use crate::{download, ffmpeg_downloader, model_downloader};
 
 mod process;
 
@@ -32,6 +32,75 @@ impl Drop for RunningGuard {
   fn drop(&mut self) {
     IS_RUNNING.store(false, Ordering::SeqCst);
   }
+}
+
+
+
+fn whisper_bin_dir(app: &AppHandle) -> Result<PathBuf, String> {
+  Ok(
+    app.path()
+      .app_data_dir()
+      .map_err(|e| format!("app_data_dir error: {e}"))?
+      .join("bin"),
+  )
+}
+
+async fn ensure_whisper_downloaded(app: &AppHandle) -> Result<(), String> {
+  let bin_dir = whisper_bin_dir(app)?;
+
+  #[cfg(windows)]
+  let whisper_name = "whisper.exe";
+  #[cfg(not(windows))]
+  let whisper_name = "whisper";
+
+  // NOTE: deps tag assets
+  let base = "https://github.com/evilduck1/LyricTime/releases/download/deps/";
+
+  let whisper_path = bin_dir.join(whisper_name);
+  if !whisper_path.exists() {
+    let url = format!("{}{}", base, whisper_name);
+    download::download_with_progress(app, "deps", &url, &whisper_path, whisper_name).await?;
+    #[cfg(unix)]
+    {
+      use std::os::unix::fs::PermissionsExt;
+      let mut perms = std::fs::metadata(&whisper_path).map_err(|e| e.to_string())?.permissions();
+      perms.set_mode(0o755);
+      std::fs::set_permissions(&whisper_path, perms).map_err(|e| e.to_string())?;
+    }
+  }
+
+  // macOS: Whisper needs dylibs next to the whisper executable.
+  #[cfg(target_os = "macos")]
+  {
+    let dylibs = [
+      // Required (as referenced by whisper)
+      "libwhisper.1.dylib",
+      "libggml.0.dylib",
+      "libggml-base.0.dylib",
+      "libggml-cpu.0.dylib",
+      "libggml-blas.0.dylib",
+      "libggml-metal.0.dylib",
+      // Optional but safe (your release includes these)
+      "libwhisper.1.8.3.dylib",
+      "libwhisper.dylib",
+      "libggml.0.9.5.dylib",
+      "libggml-base.0.9.5.dylib",
+      "libggml-cpu.0.9.5.dylib",
+      "libggml-blas.0.9.5.dylib",
+      "libggml-metal.0.9.5.dylib",
+    ];
+
+    for name in dylibs {
+      let p = bin_dir.join(name);
+      if p.exists() {
+        continue;
+      }
+      let url = format!("{}{}", base, name);
+      download::download_with_progress(app, "deps", &url, &p, name).await?;
+    }
+  }
+
+  Ok(())
 }
 
 fn whisper_supports_direct(path: &PathBuf) -> bool {
@@ -120,6 +189,9 @@ let ffmpeg = PathBuf::from(ffmpeg_paths.ffmpeg_path);
 let small_url = "https://github.com/evilduck1/LyricTime/releases/download/models/ggml-small.bin".to_string();
 let medium_url = "https://github.com/evilduck1/LyricTime/releases/download/models/ggml-medium.bin".to_string();
 let _ = model_downloader::ensure_models(app.clone(), small_url, medium_url).await?;
+
+// Ensure whisper + runtime libs exist (download-on-first-use)
+  ensure_whisper_downloaded(&app).await?;
 
 // Whisper executable: prefer app data (downloaded) then bundled resources.
 // NOTE: If you aren't bundling whisper, you'll need to upload it as a Release asset and download it like ffmpeg.

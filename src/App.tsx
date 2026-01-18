@@ -41,6 +41,55 @@ export default function App() {
     };
   }, []);
 
+
+  useEffect(() => {
+    let unlisten: (() => void) | null = null;
+
+    (async () => {
+      unlisten = await listen<{
+        group: string;
+        file: string;
+        downloaded_bytes: number;
+        total_bytes: number | null;
+        status: "downloading" | "done" | "error";
+        error?: string | null;
+      }>("download://progress", (event) => {
+        const p = event.payload;
+
+        const fmt = (bytes: number) => {
+          const units = ["B", "KB", "MB", "GB", "TB"];
+          let v = bytes;
+          let i = 0;
+          while (v >= 1024 && i < units.length - 1) {
+            v /= 1024;
+            i++;
+          }
+          return `${v.toFixed(i === 0 ? 0 : 1)}${units[i]}`;
+        };
+
+        if (p.status === "downloading") {
+          const left = fmt(p.downloaded_bytes);
+          const right = p.total_bytes ? fmt(p.total_bytes) : "?";
+          setStatus(`Downloading ${p.file}: ${left} / ${right}`);
+        }
+
+        if (p.status === "done") {
+          setStatus(`Downloaded ${p.file}`);
+        }
+
+        if (p.status === "error") {
+          setStatus(`Error downloading ${p.file}`);
+          setLog((l) => [...l, p.error ?? "Unknown download error"]);
+        }
+      });
+    })();
+
+    return () => {
+      if (unlisten) unlisten();
+    };
+  }, []);
+
+
   const canRun = useMemo(() => !!audioPath && !busy, [audioPath, busy]);
 
   async function chooseFile() {
