@@ -3,6 +3,7 @@
 mod whisper;
 mod model_downloader;
 mod ffmpeg_downloader;
+mod download;
 
 #[tauri::command]
 async fn generate_lrc_next_to_audio(
