@@ -69,6 +69,20 @@ async fn ensure_whisper_downloaded(app: &AppHandle) -> Result<(), String> {
     }
   }
 
+  // Windows: Whisper needs its DLLs next to the executable.
+  #[cfg(windows)]
+  {
+    let dlls = ["whisper.dll", "ggml.dll", "ggml-base.dll", "ggml-cpu.dll"];
+    for name in dlls {
+      let p = bin_dir.join(name);
+      if p.exists() {
+        continue;
+      }
+      let url = format!("{}{}", base, name);
+      download::download_with_progress(app, "deps", &url, &p, name).await?;
+    }
+  }
+
   // macOS: Whisper needs dylibs next to the whisper executable.
   #[cfg(target_os = "macos")]
   {
@@ -78,7 +92,6 @@ async fn ensure_whisper_downloaded(app: &AppHandle) -> Result<(), String> {
       "libggml.0.dylib",
       "libggml-base.0.dylib",
       "libggml-cpu.0.dylib",
-      "libggml-blas.0.dylib",
       "libggml-metal.0.dylib",
       // Optional but safe (your release includes these)
       "libwhisper.1.8.3.dylib",
@@ -86,7 +99,6 @@ async fn ensure_whisper_downloaded(app: &AppHandle) -> Result<(), String> {
       "libggml.0.9.5.dylib",
       "libggml-base.0.9.5.dylib",
       "libggml-cpu.0.9.5.dylib",
-      "libggml-blas.0.9.5.dylib",
       "libggml-metal.0.9.5.dylib",
     ];
 
@@ -202,12 +214,16 @@ let app_bin_dir = app
   .map_err(|e| format!("app_data_dir error: {e}"))?
   .join("bin");
 
+// IMPORTANT: Windows must use the .exe name. Otherwise we'll download/launch the macOS/Linux asset
+// and Windows will fail to start the process.
+let whisper_exec_name = if cfg!(windows) { "whisper.exe" } else { "whisper" };
+
 let whisper = process::pick_executable_multi(
   &app_bin_dir,
   &resources_bin_dir,
   fallback_resources_dir.as_ref(),
   platform,
-  "whisper",
+  whisper_exec_name,
 )?;
 
   // Temp workspace (unique per run)
