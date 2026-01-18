@@ -34,8 +34,6 @@ impl Drop for RunningGuard {
   }
 }
 
-
-
 fn whisper_bin_dir(app: &AppHandle) -> Result<PathBuf, String> {
   Ok(
     app.path()

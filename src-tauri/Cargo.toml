@@ -1,6 +1,6 @@
 [package]
 name = "lyric-line-sync"
-version = "0.1.0"
+version = "3.0.3"
 description = "Offline line-timed lyric generator"
 authors = ["you"]
 edition = "2021"
